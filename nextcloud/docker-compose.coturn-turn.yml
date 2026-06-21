@@ -1,0 +1,31 @@
+name: coturn-turn
+services:
+  coturn:
+    image: coturn/coturn:4.6.3
+    network_mode: host
+    restart: always
+    env_file: .env
+    command: >
+      -n
+      --log-file=stdout
+      --min-port=49152
+      --max-port=65535
+      --listening-port=3479
+      --relay-ip=${TURN_RELAY_IP}
+      --external-ip=${TURN_RELAY_IP}
+      --static-auth-secret=${TURN_SECRET}
+      --realm=SEU_TAILNET.ts.net
+      --no-tls
+      --no-dtls
+      --no-multicast-peers
+      --fingerprint
+      --denied-peer-ip=10.0.0.0-10.255.255.255
+      --denied-peer-ip=192.168.0.0-192.168.255.255
+      --denied-peer-ip=172.16.0.0-172.31.255.255
+      --allowed-peer-ip=172.18.0.0-172.18.255.255
+      --allowed-peer-ip=100.64.0.0-100.127.255.255
+    healthcheck:
+      test: ["CMD", "nc", "-u", "-z", "localhost", "3479"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

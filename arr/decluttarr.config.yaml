@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────
+#  DECLUTTARR V2 — config.yaml
+#
+#  Salve em: /opt/media-stack/config/decluttarr/config.yaml
+#
+#  Preencha as API keys APÓS o primeiro boot de cada serviço:
+#  Sonarr:  Settings → General → API Key
+#  Radarr:  Settings → General → API Key
+#  qBit:    Tools → WebUI → Authentication (usuário/senha)
+#
+#  IMPORTANTE: No compose, TEST_RUN=True está ativado.
+#  O Decluttarr vai rodar mas NÃO vai remover nada até
+#  você trocar para False e ter confirmado que está ok.
+# ─────────────────────────────────────────────────────────────
+
+radarr:
+  - base_url: "http://radarr:7878"
+    api_key: "db7be5a541b64c5caad7e86405d6e29e"
+
+sonarr:
+  - base_url: "http://sonarr:8989"
+    api_key: "d13193e0edb44ad58500bbf9d11abceb"
+
+# qBittorrent está na rede do Gluetun — use o hostname "gluetun"
+qbittorrent:
+  - base_url: "http://gluetun:8090"
+    username: "admin"   # descomente se tiver senha configurada
+    password: "Qj3rqHz2L%poHNJXGk&STaeQYsn^9BzQ&9to5W4L*bBuVX9tNk6csFxBVb6"   # descomente se tiver senha configurada
+    name: "qBittorrent"
+
+# ── O que remover ─────────────────────────────────────────────
+remove_stalled: true          # downloads travados sem progresso
+remove_failed: true           # downloads que falharam
+remove_failed_imports: true   # arquivos que não conseguiram importar
+remove_metadata_missing: true # sem metadados por muito tempo
+remove_missing_files: true    # arquivo sumiu do disco
+remove_orphans: true          # na fila do qBit mas não no *arr
+remove_unmonitored: false     # NÃO remove não-monitorados (seguro)
+
+# ── Limites ───────────────────────────────────────────────────
+permitted_attempts: 3   # tentativas antes de remover
+timer: 10               # checar a cada 10 minutos

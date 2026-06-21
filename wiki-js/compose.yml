@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: wiki
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_USER: ${DB_USER}
+    logging:
+      driver: none
+    restart: unless-stopped
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: wiki                          # nome que aparece no seu tailnet (wiki.seu-tailnet.ts.net)
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}        # gere em tailscale.com/settings/keys
+      # - TS_EXTRA_ARGS=--advertise-tags=tag:containers
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale-config:/config
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+
+  wiki:
+    image: ghcr.io/requarks/wiki:2
+    depends_on:
+      - db
+      - tailscale
+    init: true
+    network_mode: service:tailscale
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: wiki
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  tailscale-state:

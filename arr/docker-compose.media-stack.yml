@@ -1,0 +1,436 @@
+networks:
+  medianet:
+    name: medianet
+    driver: bridge
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - TZ=America/Sao_Paulo
+    env_file:
+      - .env
+    ports:
+      - "8090:8090"
+      - "6881:6881"
+      - "6881:6881/udp"
+    networks:
+      - medianet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+      - WEBUI_PORT=8090
+    volumes:
+      - /mnt/media-stack/config/qbittorrent:/config
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    restart: unless-stopped
+
+  tailscale-qbittorrent:
+    image: tailscale/tailscale:latest
+    container_name: qbittorrent_tailscale
+    hostname: qbittorrent
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-qbittorrent-state:/var/lib/tailscale
+      - ./ts-serve.qbittorrent.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  tailscale-jellyfin:
+    image: tailscale/tailscale:latest
+    container_name: jellyfin_tailscale
+    hostname: jellyfin
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-jellyfin-state:/var/lib/tailscale
+      - ./ts-serve.jellyfin.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: 1000:1000
+
+    environment:
+      - JELLYFIN_PublishedServerUrl=https://jellyfin.${TS_TAILNET}
+
+    volumes:
+      - /mnt/media-stack/config/jellyfin/config:/config
+      - /mnt/media-stack/config/jellyfin/cache:/cache
+      - /mnt/media-stack/data/media:/media:ro
+      - /caminho/para/midia-externa:/external:ro
+
+    network_mode: service:tailscale-jellyfin
+    restart: unless-stopped
+    depends_on:
+      - tailscale-jellyfin
+
+  tailscale-jellyseerr:
+    image: tailscale/tailscale:latest
+    container_name: jellyseerr_tailscale
+    hostname: jellyseerr
+    ports:
+      - "5055:5055"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-jellyseerr-state:/var/lib/tailscale
+      - ./ts-serve.jellyseerr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  jellyseerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    user: 1000:1000
+    container_name: jellyseerr
+    network_mode: service:tailscale-jellyseerr
+    depends_on:
+      - tailscale-jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=America/Sao_Paulo
+      - PORT=5055
+    volumes:
+      - /mnt/media-stack/config/jellyseerr/config:/app/config
+    restart: unless-stopped
+
+  tailscale-sonarr:
+    image: tailscale/tailscale:latest
+    container_name: sonarr_tailscale
+    hostname: sonarr
+    ports:
+      - "8989:8989"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-sonarr-state:/var/lib/tailscale
+      - ./ts-serve.sonarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    network_mode: service:tailscale-sonarr
+    depends_on:
+      - tailscale-sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/sonarr:/config
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    restart: unless-stopped
+
+  tailscale-radarr:
+    image: tailscale/tailscale:latest
+    container_name: radarr_tailscale
+    hostname: radarr
+    ports:
+      - "7878:7878"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-radarr-state:/var/lib/tailscale
+      - ./ts-serve.radarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    network_mode: service:tailscale-radarr
+    depends_on:
+      - tailscale-radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/radarr:/config
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    restart: unless-stopped
+
+  tailscale-prowlarr:
+    image: tailscale/tailscale:latest
+    container_name: prowlarr_tailscale
+    hostname: prowlarr
+    ports:
+      - "9696:9696"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-prowlarr-state:/var/lib/tailscale
+      - ./ts-serve.prowlarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: service:tailscale-prowlarr
+    depends_on:
+      - tailscale-prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/prowlarr:/config
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - TZ=America/Sao_Paulo
+    ports:
+      - "8191:8191"
+    networks:
+      - medianet
+
+  tailscale-bazarr:
+    image: tailscale/tailscale:latest
+    container_name: bazarr_tailscale
+    hostname: bazarr
+    ports:
+      - "6767:6767"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-bazarr-state:/var/lib/tailscale
+      - ./ts-serve.bazarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    network_mode: service:tailscale-bazarr
+    depends_on:
+      - tailscale-bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/bazarr:/config
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    restart: unless-stopped
+
+  tailscale-profilarr:
+    image: tailscale/tailscale:latest
+    container_name: profilarr_tailscale
+    hostname: profilarr
+    ports:
+      - "6868:6868"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-profilarr-state:/var/lib/tailscale
+      - ./ts-serve.profilarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  profilarr:
+    image: santiagosayshey/profilarr:latest
+    container_name: profilarr
+    network_mode: service:tailscale-profilarr
+    depends_on:
+      - tailscale-profilarr
+      - sonarr
+      - radarr
+    environment:
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/profilarr:/config
+    restart: unless-stopped
+
+  decluttarr:
+    image: ghcr.io/manimatter/decluttarr:latest
+    container_name: decluttarr
+    restart: always
+    environment:
+      - TZ=America/Sao_Paulo
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - LOG_LEVEL=INFO
+      - TEST_RUN=false
+    volumes:
+      - /mnt/media-stack/config/decluttarr/config.yaml:/app/config/config.yaml
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    networks:
+      - medianet
+
+  tailscale-dozzle:
+    image: tailscale/tailscale:latest
+    container_name: dozzle_tailscale
+    hostname: dozzle
+    ports:
+      - "8081:8080"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-dozzle-state:/var/lib/tailscale
+      - ./ts-serve.dozzle.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    network_mode: service:tailscale-dozzle
+    depends_on:
+      - tailscale-dozzle
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: always
+
+  tailscale-lidarr:
+    image: tailscale/tailscale:latest
+    container_name: lidarr_tailscale
+    hostname: lidarr
+    ports:
+      - "8686:8686"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-lidarr-state:/var/lib/tailscale
+      - ./ts-serve.lidarr.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: always
+    networks:
+      - medianet
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    network_mode: service:tailscale-lidarr
+    depends_on:
+      - tailscale-lidarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - /mnt/media-stack/config/lidarr:/config
+      - /mnt/media-stack/data:/mnt/media-stack/data
+    restart: unless-stopped
+
+volumes:
+  tailscale-qbittorrent-state:
+  tailscale-sonarr-state:
+  tailscale-radarr-state:
+  tailscale-prowlarr-state:
+  tailscale-bazarr-state:
+  tailscale-profilarr-state:
+  tailscale-dozzle-state:
+  tailscale-jellyseerr-state:
+  tailscale-lidarr-state:
+  tailscale-jellyfin-state:

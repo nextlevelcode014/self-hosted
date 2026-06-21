@@ -1,0 +1,29 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale-vaultwarden
+    hostname: vaultwarden
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+    volumes:
+      - ./tailscale-state:/var/lib/tailscale
+      - ./tailscale-config:/config
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    network_mode: service:tailscale
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      DOMAIN: "https://vaultwarden.${TS_TAILNET}"
+      SIGNUPS_ALLOWED: "false"
+    volumes:
+      - ./vw-data/:/data/

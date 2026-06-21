@@ -1,0 +1,32 @@
+services:
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+    network_mode: service:tailscale-adguard  # compartilha rede com o sidecar
+    volumes:
+      - ./adguard/work:/opt/adguardhome/work
+      - ./adguard/conf:/opt/adguardhome/conf
+    depends_on:
+      - tailscale-adguard
+
+  tailscale-adguard:
+    image: tailscale/tailscale:latest
+    container_name: tailscale-adguard
+    restart: unless-stopped
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_HOSTNAME=adguard           # nome que aparece na tailnet
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_SERVE_CONFIG=/config/serve.json
+    volumes:
+        - ./tailscale/state:/var/lib/tailscale
+        - ./tailscale/serve.json:/config/serve.json  # adiciona essa linha
+        - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1

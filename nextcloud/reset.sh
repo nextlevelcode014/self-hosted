@@ -37,16 +37,8 @@ sudo docker container prune -f
 echo "-> Removing nextcloud-aio network (if exists)"
 sudo docker network rm nextcloud-aio 2>/dev/null || true
 
-# 7. Show dangling volumes
-echo "-> Dangling volumes:"
-sudo docker volume ls --filter "dangling=true"
-
-# 8. Remove dangling volumes
-echo "-> Pruning dangling volumes"
-sudo docker volume prune -f --filter all=1
-
-# 9. Check remaining nextcloud-aio volumes
-echo "-> Checking remaining nextcloud-aio volumes"
+# 7. Remove nextcloud-aio volumes
+echo "-> Removing nextcloud-aio volumes"
 AIO_VOLUMES=$(sudo docker volume ls --format '{{.Name}}' | grep nextcloud || true)
 
 if [ -n "$AIO_VOLUMES" ]; then

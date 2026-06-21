@@ -32,7 +32,9 @@ docker compose up -d
 Para processamento de tarefas de IA (tradução, imagens):
 
 ```bash
-# systemd service
+# Copiar script e service
+sudo mkdir -p /opt/nextcloud-ai-worker
+sudo cp taskprocessing.sh /opt/nextcloud-ai-worker/
 sudo cp nextcloud-ai-worker@.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now nextcloud-ai-worker@1

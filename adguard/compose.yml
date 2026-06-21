@@ -5,8 +5,8 @@ services:
     restart: unless-stopped
     network_mode: service:tailscale-adguard  # compartilha rede com o sidecar
     volumes:
-      - ./adguard/work:/opt/adguardhome/work
-      - ./adguard/conf:/opt/adguardhome/conf
+      - ./work:/opt/adguardhome/work
+      - ./conf:/opt/adguardhome/conf
     depends_on:
       - tailscale-adguard
 
@@ -22,7 +22,7 @@ services:
       - TS_SERVE_CONFIG=/config/serve.json
     volumes:
         - ./tailscale/state:/var/lib/tailscale
-        - ./tailscale/serve.json:/config/serve.json  # adiciona essa linha
+        - ./tailscale/serve.json:/config/serve.json
         - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN

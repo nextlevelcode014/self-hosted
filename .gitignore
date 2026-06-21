@@ -1,5 +1,6 @@
 .env
 tailscale*
 vw-data
-adguard/adguard
+adguard/work
+adguard/conf
 ncdata

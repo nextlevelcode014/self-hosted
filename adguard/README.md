@@ -2,11 +2,12 @@
 
 DNS-level ad-blocking and network-wide tracker blocking.
 
-## Services
+## Serviços
 
-| Service | Image | Purpose |
+| Serviço | Imagem | Função |
 |---|---|---|
 | `adguardhome` | `adguard/adguardhome:latest` | DNS sinkhole, DHCP server |
+| `tailscale-adguard` | `tailscale/tailscale:latest` | Sidecar Tailscale |
 
 ## Acesso
 
@@ -14,8 +15,8 @@ DNS-level ad-blocking and network-wide tracker blocking.
 
 ## Config
 
-- `./adguard/work/` — dados de trabalho
-- `./adguard/conf/` — configuração
+- `./work/` — dados de trabalho
+- `./conf/` — configuração
 
 ## Uso
 

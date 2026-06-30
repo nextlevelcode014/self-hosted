@@ -1,0 +1,33 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - SERVER_COUNTRIES=Romania
+      - HTTPPROXY=on
+      - HTTPPROXY_LISTENING_ADDRESS=:8888
+      - HEALTH_TARGET_ADDRESS=1.1.1.1:443
+      - TZ=America/Sao_Paulo
+    ports:
+      - "8888:8888"     # proxy HTTP
+      - "8001:8000"     # control server (API pra trocar país/servidor)
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8001/v1/openvpn/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - vpn_net
+
+networks:
+  vpn_net:
+    name: vpn_net

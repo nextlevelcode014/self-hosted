@@ -94,14 +94,11 @@ renderizar:
 
 ## Nota sobre o SearXNG
 
-O SearXNG segue **dois padrões ao mesmo tempo**, cada um documentado onde faz
-mais sentido:
+O SearXNG agora segue o **mesmo padrão do qBittorrent**:
 
-- **Exposição**: como o Nextcloud, não usa sidecar Tailscale — é exposto via
-  `tailscale serve` direto no host, na porta 9000.
-- **Saída de rede**: usa o **proxy HTTP** do Gluetun (`:8888`), então toda
-  consulta sai pelo túnel WireGuard da ProtonVPN (diferente do qBittorrent,
-  que compartilha a rede do Gluetun via `network_mode: container:gluetun`).
+- **Exposição**: via **sidecar Tailscale** (`tailscale-searxng` na rede `vpn_net`), não mais via host-level `tailscale serve`.
+- **Saída de rede**: usa `network_mode: container:gluetun` — todo o tráfego sai pelo túnel WireGuard da ProtonVPN.
+- **Cache**: Valkey na rede `vpn_net`.
 
 Isso está refletido tanto no `diagrama-visao-geral.puml` quanto no
 `diagrama-fluxo-searxng.puml`.

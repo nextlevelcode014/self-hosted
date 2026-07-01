@@ -4,7 +4,7 @@ skinparam defaultFontName SansSerif
 skinparam defaultFontSize 12
 
 title Fluxo — SearXNG (Meta-Buscador Privado)
-caption Exposto via tailscale serve (host, porta 9000) · consultas roteadas via Gluetun/ProtonVPN
+caption Sidecar Tailscale · tráfego via network_mode: container:gluetun (ProtonVPN)
 
 skinparam actor {
   BorderColor #4A148C
@@ -14,47 +14,49 @@ skinparam actor {
 
 actor "Usuário" as user
 participant "Navegador" as browser
-participant "Host Linux" as sx_host
+participant "Tailscale\nMesh VPN" as tailscale
+participant "ts-searxng" as ts_searxng
 participant "SearXNG\nCore" as searxng
 participant "Gluetun VPN\n(ProtonVPN)" as gluetun
-participant "Valkey Cache" as searxng_valkey
+participant "Valkey Cache\n(vpn_net)" as searxng_valkey
 participant "Mecanismos de\nbusca externos" as search_engines
 
-group Passo 1: Exposição via Tailscale (host-level, uma vez)
-  sx_host -> sx_host : "tailscale serve --bg\nhttp://127.0.0.1:9000"
+group Passo 1: Usuário acessa via Tailscale
+  user -> browser : "Acessa https://searxng.<TAILNET>.ts.net"
+  browser -> tailscale : "Resolução DNS\n(mesh Tailscale)"
+  tailscale -> ts_searxng : "HTTPS request"
+  ts_searxng -> gluetun : "Proxy HTTP\nhttp://gluetun:8080"
   note right
-    Mesmo padrão do Nextcloud:
-    **tailscale serve direto no host**,
-    sem sidecar container.
+    Sidecar na rede **vpn_net**.
+    Proxy para gluetun:8080 porque
+    SearXNG compartilha a rede do gluetun.
   end note
 end
 
-group Passo 2: Usuário faz a busca
-  user -> browser : "Acessa https://searxng.<TAILNET>.ts.net"
-  browser -> sx_host : "Host-level tailscale serve"
-  sx_host -> searxng : "Proxy :9000"
+group Passo 2: SearXNG processa a busca
+  gluetun -> searxng : "Porta 8080 (mesma\nrede do gluetun)"
   searxng -> searxng : "Categorias: web, imagens,\nvídeos, notícias, arquivos"
 end
 
-group Passo 3: Busca roteada via proxy Gluetun
-  searxng -> gluetun : "Proxy HTTP :8888"
-  gluetun -> internet : "Saída anônima\n(WireGuard → ProtonVPN)"
+group Passo 3: Consultas saem pela VPN
+  searxng -> gluetun : "Todo tráfego via\nnetwork_mode:\ncontainer:gluetun"
+  gluetun -> internet : "WireGuard → ProtonVPN\nIP anônimo"
   internet -> search_engines : "Query sem IP real"
   search_engines --> gluetun : "Resultados"
   gluetun --> searxng : "Resposta"
 end
 
-group Passo 4: Cache e resposta ao usuário
-  searxng -> searxng_valkey : "Cache resultados"
+group Passo 4: Cache e resposta
+  searxng -> searxng_valkey : "Cache resultados\n(via vpn_net)"
   searxng --> user : "Página de resultados\n(sem tracking, sem perfil)"
 end
 
 note right
-  SearXNG usa o **proxy HTTP** do Gluetun (:8888)
-  para rotear consultas de busca. Diferente do
-  qBittorrent, que compartilha a rede via
-  network_mode:container:gluetun, o SearXNG apenas
-  encaminha as requisições HTTP pelo proxy.
+  **Mudanças recentes:**
+  - Sidecar Tailscale substituiu o host-level serve
+  - network_mode: container:gluetun (igual qBittorrent)
+  - Proxy HTTP removido (redundante)
+  - Valkey na vpn_net para resolução DNS
   Cache via Valkey. Rate limiting configurável.
 end note
 

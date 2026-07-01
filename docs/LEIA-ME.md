@@ -9,25 +9,33 @@ tudo de uma vez vira um "prato de espaguete" impossível de seguir.
 ## Estrutura dos arquivos
 
 ```
-docs/diagramas/
-├── LEIA-ME.md                          este arquivo
-├── diagrama-visao-geral.puml           mapa de todos os serviços e como se conectam
-└── fluxos/
-    ├── diagrama-fluxo-filme-serie.puml     jornada: pedir → baixar → assistir
-    ├── diagrama-fluxo-adguard.puml         DNS / bloqueio de anúncios
-    ├── diagrama-fluxo-immich.puml          fotos e vídeos (Google Photos)
-    ├── diagrama-fluxo-nextcloud.puml       nuvem, Talk e edição de documentos
-    ├── diagrama-fluxo-rustdesk.puml        acesso remoto
-    ├── diagrama-fluxo-searxng.puml         meta-buscador privado
-    ├── diagrama-fluxo-vaultwarden.puml     gerenciador de senhas
-    └── diagrama-fluxo-wikijs.puml          wiki interna
+docs/
+├── LEIA-ME.md                              este arquivo
+├── diagrama-visao-geral.puml               mapa de todos os serviços
+├── diagrama-fluxo-filme-serie.puml         jornada: pedir → baixar → assistir
+├── diagrama-fluxo-adguard.puml             DNS / bloqueio de anúncios
+├── diagrama-fluxo-immich.puml              fotos e vídeos
+├── diagrama-fluxo-nextcloud.puml           nuvem, Talk e edição de documentos
+├── diagrama-fluxo-rustdesk.puml            acesso remoto
+├── diagrama-fluxo-searxng.puml             meta-buscador privado
+├── diagrama-fluxo-vaultwarden.puml         gerenciador de senhas
+├── diagrama-fluxo-wikijs.puml              wiki interna
+└── images/
+    ├── diagrama-visao-geral.png
+    ├── diagrama-fluxo-filme-serie.png
+    ├── diagrama-fluxo-adguard.png
+    ├── diagrama-fluxo-immich.png
+    ├── diagrama-fluxo-nextcloud.png
+    ├── diagrama-fluxo-rustdesk.png
+    ├── diagrama-fluxo-searxng.png
+    └── diagrama-fluxo-vaultwarden.png
 ```
 
 **Quando usar cada um:**
 
 - Quer entender **o que existe** e como as peças se encaixam? → `diagrama-visao-geral.puml`
 - Quer entender **como um serviço específico funciona passo a passo**, do
-  clique do usuário até a resposta? → o arquivo correspondente em `fluxos/`
+  clique do usuário até a resposta? → o `.puml` correspondente
 
 > Observação: o antigo `diagrama-fluxo-independentes.puml` (que juntava os 7
 > serviços independentes em um único arquivo) foi descontinuado e substituído
@@ -53,7 +61,7 @@ As cores dos pacotes seguem a legenda no rodapé do próprio diagrama (laranja
 = infra compartilhada, roxo = Arr Stack, verde = serviços independentes,
 azul claro = sidecar Tailscale).
 
-### 2. Fluxos — diagrama de sequência (arquivos em `fluxos/`)
+### 2. Fluxos — diagrama de sequência
 
 Mostra **a ordem em que as coisas acontecem**, de cima para baixo, como uma
 linha do tempo. É o tipo certo para responder "o que acontece quando eu
@@ -97,12 +105,3 @@ mais sentido:
 
 Isso está refletido tanto no `diagrama-visao-geral.puml` quanto no
 `diagrama-fluxo-searxng.puml`.
-
-## Nota sobre o Lidarr
-
-O Lidarr (gerenciador de música) foi **removido** da stack — tanto do
-`diagrama-visao-geral.puml` quanto de qualquer referência nos fluxos. Se
-ainda houver arquivos de compose/config referenciando o Lidarr no restante
-do repositório (ex: `arr/docker-compose.media-stack.yml`,
-`arr/ts-serve.*.json`), vale revisar e remover também, para manter a
-documentação e a infra real em sincronia.

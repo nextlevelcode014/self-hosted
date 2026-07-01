@@ -1,3 +1,9 @@
+valkey:
+  url: valkey://valkey:6379/0
+
+ui:
+  static_use_hash: true
+
 engines:
   - name: startpage
     disabled: true
@@ -36,10 +42,3 @@ engines:
     disabled: true
   - name: torch
     disabled: true
-
-outgoing:
-  request_timeout: 6.0
-  proxies:
-    all://:
-      - http://gluetun:8888
-  extra_proxy_timeout: 10

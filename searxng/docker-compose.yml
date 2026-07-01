@@ -1,6 +1,3 @@
-# Read the documentation before using the `docker-compose.yml` file:
-# https://docs.searxng.org/admin/installation-docker.html
-
 name: searxng
 
 services:
@@ -8,15 +5,11 @@ services:
     container_name: searxng-core
     image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
     restart: always
-    ports:
-      - ${SEARXNG_HOST:+${SEARXNG_HOST}:}${SEARXNG_PORT:-8080}:${SEARXNG_PORT:-8080}
+    network_mode: "container:gluetun"
     env_file: ./.env
     volumes:
       - ./core-config/:/etc/searxng/:Z
       - core-data:/var/cache/searxng/
-    networks:
-      - default
-      - vpn_net
 
   valkey:
     container_name: searxng-valkey
@@ -25,11 +18,35 @@ services:
     restart: always
     volumes:
       - valkey-data:/data/
+    networks:
+      - vpn_net
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale-searxng
+    hostname: searxng
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts-serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./ts-serve.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+    networks:
+      - vpn_net
 
 volumes:
   core-data:
   valkey-data:
+  tailscale-state:
 
 networks:
   vpn_net:
+    name: vpn_net
     external: true

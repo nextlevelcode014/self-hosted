@@ -1,0 +1,55 @@
+@startuml Fluxo - Immich
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — Immich (Fotos e Vídeos, alternativa ao Google Photos)
+caption Upload, indexação por IA e busca por similaridade de imagens
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "App Immich\n(mobile/web)" as immich_app
+participant "ts-immich" as ts_immich
+participant "Immich Server" as immich
+participant "Immich ML" as immich_ml
+participant "PostgreSQL 14\n+ pgvector" as immich_db
+participant "Valkey/Redis" as immich_redis
+
+group Passo 1: Conexão via Tailscale
+  user -> immich_app : "Abre app Immich"
+  immich_app -> ts_immich : "HTTPS via Tailscale"
+  ts_immich -> immich : "Proxy :2283"
+end
+
+group Passo 2: Upload de mídia
+  user -> immich : "Faz upload de\nfotos/vídeos"
+  immich -> immich_db : "Salva metadados +\nembeddings (pgvector)"
+  immich -> immich_redis : "Cache de sessões\ne tarefas"
+  immich -> filesystem : "Salva arquivos em\n${UPLOAD_LOCATION}"
+end
+
+group Passo 3: Processamento por IA (assíncrono)
+  immich -> immich_ml : "Job: reconhecimento facial,\nclassificação, tags"
+  immich_ml -> immich_db : "Salva embeddings\n(busca por similaridade)"
+end
+
+group Passo 4: Busca inteligente
+  user -> immich : "Busca \"praia 2024\""
+  immich -> immich_ml : "Query ML"
+  immich_ml -> immich_db : "Busca vetorial\n(pgvector)"
+  immich -> user : "Resultados da busca"
+end
+
+note right
+  ML roda com aceleração CUDA.
+  pgvector permite busca por
+  similaridade de imagens
+  (não apenas texto/tags).
+end note
+
+@enduml

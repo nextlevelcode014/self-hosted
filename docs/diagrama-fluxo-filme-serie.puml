@@ -1,0 +1,157 @@
+@startuml Fluxo - Request de Filme/Série
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo Completo: Usuário requisita um filme/série até assistir
+caption Arr Stack - Self-Hosted Infrastructure via Tailscale
+
+actor "Usuário" as user
+
+' ============================================================
+' ESTILOS
+' ============================================================
+skinparam participant {
+  BorderColor #2E4057
+  FontColor #2E4057
+}
+
+box "Acesso Externo" #FFF3E0
+  participant "Navegador" as browser
+  participant "Tailscale\nMesh VPN" as tailscale
+end box
+
+box "Frontend / Request" #E1D5E7
+  participant "Jellyseerr\n(https://jellyseerr.TAILNET.ts.net)" as jellyseerr
+  participant "Tailscale Sidecar\n(ts-jellyseerr)" as ts_jellyseerr
+end box
+
+box "Gerenciadores" #B3D4F0
+  participant "Sonarr (Séries)\n(https://sonarr.TAILNET.ts.net)" as sonarr
+  participant "Radarr (Filmes)\n(https://radarr.TAILNET.ts.net)" as radarr
+end box
+
+box "Indexação" #C8E6C9
+  participant "Prowlarr\n(https://prowlarr.TAILNET.ts.net)" as prowlarr
+  participant "FlareSolverr\n(:8191)" as flaresolverr
+end box
+
+box "Download" #FFE0B2
+  participant "Gluetun\nVPN ProtonVPN" as gluetun
+  participant "qBittorrent\n(WebUI :8090)" as qbittorrent
+end box
+
+box "Pós-Processamento" #F3E5F5
+  participant "Bazarr\n(Legendas)" as bazarr
+  participant "Decluttarr\n(Limpeza)" as decluttarr
+end box
+
+box "Streaming" #E8F5E9
+  participant "Jellyfin\n(https://jellyfin.TAILNET.ts.net)" as jellyfin
+  participant "Tailscale Sidecar\n(ts-jellyfin)" as ts_jellyfin
+end box
+
+' ============================================================
+' FLUXO PRINCIPAL
+' ============================================================
+
+' --- PASSO 1: USUÁRIO FAZ REQUEST ---
+group Passo 1: Usuário faz request
+  user -> browser : "Acessa jellyseerr.<TAILNET>.ts.net"
+  browser -> tailscale : "Resolução DNS\n(mesh Tailscale)"
+  tailscale -> ts_jellyseerr : "HTTPS request"
+  ts_jellyseerr -> jellyseerr : "Proxy HTTP :5055"
+  user -> jellyseerr : "Busca filme/série e clica em 'Request'"
+end
+
+' --- PASSO 2: JELLYSEERR ENVIA PARA O *ARR ---
+group Passo 2: Jellyseerr envia para Sonarr/Radarr
+  jellyseerr -> sonarr : "API: adicionar série\n(com qualidade preferida)"
+  jellyseerr -> radarr : "API: adicionar filme\n(com qualidade preferida)"
+  note right
+    Perfil de qualidade vem do **Profilarr**,
+    que gerencia perfis automáticos.
+  end note
+end
+
+' --- PASSO 3: *ARR BUSCA INDEXADORES ---
+group Passo 3: Sonarr/Radarr buscam fontes nos indexadores
+  sonarr -> prowlarr : "Query: buscar episódios"
+  radarr -> prowlarr : "Query: buscar filme"
+  prowlarr -> flaresolverr : "Bypass Cloudflare\n(se necessário)"
+  prowlarr --> sonarr : "Retorna lista de torrents\n(categorizados por qualidade)"
+  prowlarr --> radarr : "Retorna lista de torrents\n(categorizados por qualidade)"
+end
+
+' --- PASSO 4: ENVIA PARA DOWNLOAD ---
+group Passo 4: Envia para download via qBittorrent
+  sonarr -> qbittorrent : "API: adicionar torrent\n(melhor match de qualidade)"
+  radarr -> qbittorrent : "API: adicionar torrent\n(melhor match de qualidade)"
+  note right
+    qBittorrent está na rede do **Gluetun** (ProtonVPN).
+    Todo tráfego P2P sai pelo túnel VPN.
+    Portas 6881 (torrent) + 8090 (WebUI).
+  end note
+end
+
+' --- PASSO 5: DOWNLOAD ---
+group Passo 5: Download do torrent
+  qbittorrent -> gluetun : "Tráfego P2P roteado\nvia network_mode: service:gluetun"
+  gluetun -> internet : "WireGuard → ProtonVPN\nIP anônimo"
+  internet -> gluetun : "Download dos peers"
+  gluetun -> qbittorrent : "Arquivos baixados"
+  qbittorrent -> filesystem : "Salva em:\n/mnt/media-stack/data/torrents/"
+end
+
+' --- PASSO 6: PÓS-DOWNLOAD ---
+group Passo 6: Pós-download (importação + legendas)
+  sonarr -> filesystem : "Monitora diretório\nde downloads"
+  sonarr -> sonarr : "Identifica episódio,\nrenomeia e move\npara /mnt/media-stack/data/media/"
+  sonarr -> bazarr : "API: buscar legendas\npara o episódio"
+  bazarr -> filesystem : "Salva .srt/.ass\njunto ao arquivo"
+
+  radarr -> filesystem : "Monitora diretório\nde downloads"
+  radarr -> radarr : "Identifica filme,\nrenomeia e move\npara /mnt/media-stack/data/media/"
+  radarr -> bazarr : "API: buscar legendas\npara o filme"
+  bazarr -> filesystem : "Salva .srt/.ass\njunto ao arquivo"
+end
+
+' --- PASSO 7: LIMPEZA ---
+group Passo 7: Limpeza (Decluttarr - a cada 10 min)
+  decluttarr -> sonarr : "API: verifica fila\nde downloads"
+  decluttarr -> radarr : "API: verifica fila\nde downloads"
+  decluttarr -> qbittorrent : "API: verifica torrents\nno cliente"
+  decluttarr -> decluttarr : "Remove:\n- Stalled (travados)\n- Failed (falhos)\n- Orphans (órfãos)\n- Missing files (sumidos)"
+end
+
+' --- PASSO 8: STREAMING ---
+group Passo 8: Usuário assiste no Jellyfin
+  user -> browser : "Acessa jellyfin.<TAILNET>.ts.net"
+  browser -> tailscale : "Resolução DNS\n(mesh Tailscale)"
+  tailscale -> ts_jellyfin : "HTTPS request"
+  ts_jellyfin -> jellyfin : "Proxy HTTP :8096"
+  jellyfin -> filesystem : "Lê arquivo de:\n/mnt/media-stack/data/media/"
+  jellyfin -> user : "Streaming direto\n(transcoding se necessário)"
+  note right
+    Jellyfin faz transcoding
+    se o cliente não suportar
+    o formato original.
+  end note
+end
+
+' ============================================================
+' LEGENDA
+' ============================================================
+legend bottom
+  |= Cor |= Camada |
+  | #FFF3E0 | Acesso Externo |
+  | #E1D5E7 | Frontend / Request |
+  | #B3D4F0 | Gerenciadores (Sonarr/Radarr) |
+  | #C8E6C9 | Indexação |
+  | #FFE0B2 | Download |
+  | #F3E5F5 | Pós-Processamento |
+  | #E8F5E9 | Streaming |
+end legend
+
+@enduml
+

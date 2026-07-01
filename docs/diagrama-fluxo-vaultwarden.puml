@@ -1,0 +1,52 @@
+@startuml Fluxo - Vaultwarden
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — Vaultwarden (Gerenciador de Senhas, compatível com Bitwarden)
+caption Login, criptografia client-side e sincronização com apps Bitwarden
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "Navegador" as browser
+participant "ts-vaultwarden" as ts_vaultwarden
+participant "Vaultwarden" as vaultwarden
+participant "App Bitwarden\n(mobile/desktop/browser)" as bw_app
+
+group Passo 1: Acesso via Tailscale
+  user -> browser : "Acessa https://vaultwarden.<TAILNET>.ts.net"
+  browser -> ts_vaultwarden : "HTTPS via Tailscale"
+  ts_vaultwarden -> vaultwarden : "Proxy"
+end
+
+group Passo 2: Login
+  user -> vaultwarden : "Login com senha mestra"
+  vaultwarden -> vaultwarden : "Verifica hash\n(PBKDF2/Argon2)"
+end
+
+group Passo 3: Salvando uma senha
+  user -> vaultwarden : "Salva nova senha"
+  vaultwarden -> vaultwarden : "Criptografa no cliente\n(AES-256) antes de enviar"
+  vaultwarden -> filesystem : "Persiste em\n./vw-data/ (SQLite)"
+end
+
+group Passo 4: Sincronização com apps/extensões
+  bw_app -> ts_vaultwarden : "Extensão/app sincroniza\nvia API Bitwarden"
+  ts_vaultwarden -> vaultwarden : "Proxy API"
+  user -> bw_app : "Autopreenche senha\nno site"
+end
+
+note right
+  **Signup desabilitado**
+  (SIGNUPS_ALLOWED=false).
+  Backup automático via
+  transfer_vaultwarden_logs.sh
+  (7z AES-256 + SCP remoto).
+end note
+
+@enduml

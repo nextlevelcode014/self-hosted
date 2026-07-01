@@ -1,0 +1,65 @@
+@startuml Fluxo - Nextcloud AIO
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — Nextcloud AIO (Nuvem + Talk + Office)
+caption Setup inicial via mastercontainer e exposição via tailscale serve no host
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "Navegador" as browser
+participant "Host Linux" as nc_host
+participant "Nextcloud AIO\nMastercontainer" as nc_master
+participant "Nextcloud\nApache (:11000)" as nc_apache
+participant "PostgreSQL 15\n(AIO gerenciado)" as nc_db
+participant "coturn\n(TURN/STUN)" as coturn
+participant "Collabora Online" as collabora
+
+group Passo 1: Setup inicial (wizard, uma vez)
+  user -> browser : "Acessa https://<IP>:8080\n(wizard setup inicial)"
+  browser -> nc_master : "Configura domínio,\napps, backup"
+  nc_master -> nc_master : "Baixa e gerencia\ncontainers internos"
+  nc_master -> nc_apache : "Sobe Apache\nna porta 11000"
+end
+
+group Passo 2: Exposição via Tailscale (host-level)
+  nc_host -> nc_host : "tailscale serve --bg\nhttp://127.0.0.1:11000"
+end
+
+group Passo 3: Acesso do dia a dia
+  user -> browser : "Acessa https://nextcloud.<TAILNET>.ts.net"
+  browser -> nc_host : "Host-level tailscale serve"
+  nc_host -> nc_apache : "Proxy :11000"
+end
+
+group Passo 4: Upload de arquivos
+  user -> nc_apache : "Upload de arquivos"
+  nc_apache -> nc_db : "Metadados dos arquivos"
+  nc_apache -> filesystem : "Salva em\n/mnt/ncdata/"
+end
+
+group Passo 5: Videochamada (Nextcloud Talk)
+  user -> nc_apache : "Nextcloud Talk\n(videochamada)"
+  nc_apache -> coturn : "TURN/STUN\n(se configurado)"
+end
+
+group Passo 6: Edição de documentos (Collabora)
+  user -> nc_apache : "Editar documento\n(Collabora Online)"
+  nc_apache -> collabora : "Proxy para\ncontainer Collabora"
+end
+
+note right
+  **Diferença chave**: Nextcloud NÃO usa
+  sidecar Tailscale. Usa tailscale serve
+  direto no **host** (fora do container).
+  AIO gerencia seus próprios containers
+  (Talk, Collabora, DB, etc.).
+end note
+
+@enduml

@@ -1,0 +1,64 @@
+@startuml Fluxo - AdGuard Home
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — AdGuard Home (DNS Sinkhole / Global Nameservers)
+caption Bloqueio de anúncios e trackers em nível de rede para toda a tailnet
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "Tailscale\nConsole" as ts_console
+participant "Tailscale\nMesh VPN" as tailscale
+participant "Dispositivo\nna tailnet" as device
+participant "AdGuard Home" as adguard
+participant "ts-adguard" as ts_adguard
+participant "Navegador" as browser
+
+' --- Passo 1: configuração inicial (uma vez) ---
+group Passo 1: Configura AdGuard como DNS global (uma vez)
+  user -> ts_console : "Configura IP do AdGuard\ncomo Global Nameservers\nno painel Tailscale"
+  ts_console -> tailscale : "Aplica DNS a\ntoda a tailnet"
+end
+
+' --- Passo 2: uso no dia a dia ---
+group Passo 2: Dispositivo conecta e usa o DNS
+  user -> device : "Conecta dispositivo\nà tailnet"
+  device -> adguard : "Toda query DNS\nrota para AdGuard"
+end
+
+group Passo 3a: Domínio bloqueado
+  adguard -> adguard : "Verifica lista de bloqueio\n(ex: adguard/Base)"
+  adguard -> device : "Bloqueado → 0.0.0.0"
+  device --> user : "Anúncio/tracker bloqueado\nem qualquer dispositivo"
+end
+
+group Passo 3b: Domínio legítimo
+  device -> adguard : "Query DNS legítima\n(ex: google.com)"
+  adguard -> device : "Resolve normalmente"
+  device -> internet : "Acesso normal"
+end
+
+' --- Passo 4: acesso ao painel ---
+group Passo 4: Usuário acessa o painel admin
+  user -> browser : "Acessa https://adguard.<TAILNET>.ts.net"
+  browser -> ts_adguard : "Tailscale serve"
+  ts_adguard -> adguard : "Painel admin\n(estatísticas, logs, listas)"
+end
+
+note right
+  **Global Nameservers** no Tailscale
+  faz TODO dispositivo na tailnet
+  usar o AdGuard como DNS,
+  sem configurar nada em cada aparelho.
+  Bloqueia anúncios e trackers
+  em nível de rede — não depende
+  de extensão de navegador.
+end note
+
+@enduml

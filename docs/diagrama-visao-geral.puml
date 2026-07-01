@@ -1,0 +1,210 @@
+@startuml Visão Geral - Self-Hosted Infrastructure
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Visão Geral da Infraestrutura Self-Hosted
+caption Projeto de substituição de serviços SaaS por alternativas auto-hospedadas via Tailscale Mesh VPN
+
+' ============================================================
+' ESTILOS
+' ============================================================
+skinparam rectangle {
+  BorderColor #2E4057
+  FontColor #2E4057
+  BackgroundColor #F0F4F8
+}
+
+skinparam node {
+  BorderColor #1B6B93
+  FontColor #1B6B93
+  BackgroundColor #D4E9F7
+}
+
+skinparam database {
+  BorderColor #2E7D32
+  FontColor #2E7D32
+  BackgroundColor #E8F5E9
+}
+
+skinparam cloud {
+  BorderColor #E65100
+  FontColor #E65100
+  BackgroundColor #FFF3E0
+}
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+' ============================================================
+' ATORES EXTERNOS
+' ============================================================
+actor "Usuários" as users
+cloud "Internet" as internet
+
+' ============================================================
+' INFRAESTRUTURA COMPARTILHADA
+' ============================================================
+package "Infraestrutura Compartilhada" as infra #FFE0B2 {
+  node "Docker Compose" as docker
+  node "Tailscale\nMesh VPN" as tailscale
+  node "Gluetun\nProtonVPN" as gluetun_vpn
+}
+
+' ============================================================
+' ARR STACK - MÍDIA
+' ============================================================
+package "Arr Stack - Pipeline de Mídia" as arr_stack #E1D5E7 {
+  node "qBittorrent\n[Torrent]" as qbittorrent
+  node "FlareSolverr\n[Bypass Cloudflare]" as flaresolverr
+  node "Prowlarr\n[Indexadores]" as prowlarr
+  node "Sonarr\n[Séries]" as sonarr
+  node "Radarr\n[Filmes]" as radarr
+  node "Bazarr\n[Legendas]" as bazarr
+  node "Profilarr\n[Perfis Qualidade]" as profilarr
+  node "Decluttarr\n[Limpeza DL]" as decluttarr
+  node "Jellyfin\n[Streaming]" as jellyfin
+  node "Jellyseerr\n[Requests]" as jellyseerr
+  node "Dozzle\n[Logs Docker]" as dozzle
+
+  package "Tailscale Sidecars\n(9 containers)" as arr_ts #B3D4F0 {
+    node "ts-sonarr" as ts_sonarr
+    node "ts-radarr" as ts_radarr
+    node "ts-bazarr" as ts_bazarr
+    node "ts-jellyfin" as ts_jellyfin
+    node "ts-jellyseerr" as ts_jellyseerr
+    node "ts-prowlarr" as ts_prowlarr
+    node "ts-profilarr" as ts_profilarr
+    node "ts-qbittorrent" as ts_qbittorrent
+    node "ts-dozzle" as ts_dozzle
+  }
+}
+
+' ============================================================
+' OUTROS SERVIÇOS
+' ============================================================
+package "Outros Serviços Independentes" as outros #C8E6C9 {
+  node "AdGuard Home\n[DNS / DHCP]" as adguard
+  node "Immich\n[Fotos e Vídeos]" as immich
+  node "Nextcloud AIO\n[Nuvem + Talk]" as nextcloud
+  node "RustDesk Server\n[Acesso Remoto]" as rustdesk
+  node "SearXNG\n[Meta-Buscador]" as searxng
+  node "Vaultwarden\n[Senhas]" as vaultwarden
+  node "Wiki.js\n[Wiki]" as wikijs
+
+  package "Tailscale Sidecars\n(5 containers)" as outros_ts #B3D4F0 {
+    node "ts-adguard" as ts_adguard
+    node "ts-immich" as ts_immich
+    node "ts-rustdesk" as ts_rustdesk
+    node "ts-vaultwarden" as ts_vaultwarden
+    node "ts-wikijs" as ts_wikijs
+  }
+}
+
+' ============================================================
+' BANCOS DE DADOS
+' ============================================================
+package "Bancos de Dados" as databases #E8F5E9 {
+  database "PostgreSQL 14\n+ pgvector" as immich_db
+  database "Valkey / Redis" as immich_redis
+  database "PostgreSQL 15" as wikijs_db
+  database "PostgreSQL 15\n(AIO gerenciado)" as nextcloud_db
+  database "Valkey" as searxng_valkey
+}
+
+' ============================================================
+' CONEXÕES: INFRAESTRUTURA
+' ============================================================
+internet --> tailscale : "Acesso Funnel\n(HTTPS)"
+tailscale --> users : "Acesso HTTPS\n*.TAILNET.ts.net"
+docker --> tailscale : "Fornece rede mesh"
+docker --> gluetun_vpn : "Fornece túnel VPN"
+gluetun_vpn --> internet : "Saída anônima\nWireGuard"
+gluetun_vpn --> qbittorrent : "Compartilha rede\nnetwork_mode: service:gluetun"
+gluetun_vpn --> searxng : "Compartilha rede\nnetwork_mode: service:gluetun"
+qbittorrent --> sonarr : "Download séries"
+qbittorrent --> radarr : "Download filmes"
+prowlarr --> sonarr : "Indexadores"
+prowlarr --> radarr : "Indexadores"
+prowlarr --> flaresolverr : "Bypass Cloudflare"
+sonarr --> bazarr : "Legendas séries"
+radarr --> bazarr : "Legendas filmes"
+sonarr --> profilarr : "Perfis qualidade"
+radarr --> profilarr : "Perfis qualidade"
+decluttarr --> qbittorrent : "Limpeza DL falhos"
+jellyfin --> jellyseerr : "Catálogo"
+
+' Tailscale sidecars Arr
+ts_sonarr --> sonarr : "Expose HTTPS"
+ts_radarr --> radarr : "Expose HTTPS"
+ts_bazarr --> bazarr : "Expose HTTPS"
+ts_prowlarr --> prowlarr : "Expose HTTPS"
+ts_profilarr --> profilarr : "Expose HTTPS"
+ts_qbittorrent --> qbittorrent : "Expose HTTPS"
+ts_jellyfin --> jellyfin : "Expose HTTPS"
+ts_jellyseerr --> jellyseerr : "Expose HTTPS"
+ts_dozzle --> dozzle : "Expose HTTPS"
+
+' ============================================================
+' CONEXÕES: OUTROS SERVIÇOS
+' ============================================================
+ts_adguard --> adguard : "Expose HTTPS"
+adguard --> tailscale : "Global Nameservers\nDNS p/ toda tailnet"
+adguard -> users : "DNS blocking\n(anúncios, trackers)"
+ts_immich --> immich : "Expose HTTPS"
+ts_rustdesk --> rustdesk : "Expose HTTPS"
+ts_vaultwarden --> vaultwarden : "Expose HTTPS"
+ts_wikijs --> wikijs : "Expose HTTPS"
+nextcloud --> tailscale : "Expose via host-level\n(container externo)"
+searxng --> tailscale : "Expose via host-level\n(tailscale serve :9000)"
+
+' ============================================================
+' CONEXÕES: BANCOS DE DADOS
+' ============================================================
+immich --> immich_db : "Persistência"
+immich --> immich_redis : "Cache"
+wikijs --> wikijs_db : "Persistência"
+nextcloud --> nextcloud_db : "Persistência"
+searxng --> searxng_valkey : "Cache"
+
+' ============================================================
+' LEGENDA
+' ============================================================
+legend bottom
+  |= Cor |= Significado |
+  | #F0F4F8 | Serviço / Aplicação |
+  | #B3D4F0 | Tailscale Sidecar (rede mesh) |
+  | #E8F5E9 | Banco de Dados |
+  | #FFE0B2 | Infraestrutura Compartilhada |
+  | #E1D5E7 | Arr Stack (grupo de mídia) |
+  | #C8E6C9 | Serviços Independentes |
+end legend
+
+' ============================================================
+' NOTAS
+' ============================================================
+note right of arr_stack
+  **Arr Stack**: Busca → Download → Organiza → Legendas → Streaming
+  Tráfego torrent roteado via Gluetun/ProtonVPN (externo).
+  Cada app exposto via sidecar Tailscale.
+  Compartilham /mnt/media-stack/.
+  qBittorrent usa network_mode: service:gluetun (rede vpn_net).
+end note
+
+note right of outros
+  Serviços **independentes** entre si.
+  Cada um com seu .env, compose.yml e dados.
+  Compartilham apenas Tailscale + Docker.
+  **AdGuard**: Global Nameservers → DNS p/ toda tailnet.
+  **SearXNG**: exposto via tailscale serve no host (:9000,
+  mesmo padrão do Nextcloud) e compartilha rede com o
+  Gluetun (network_mode: service:gluetun), assim como
+  o qBittorrent — toda consulta sai pelo túnel ProtonVPN.
+end note
+
+@enduml
+

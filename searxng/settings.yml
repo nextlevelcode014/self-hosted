@@ -1,0 +1,45 @@
+engines:
+  - name: startpage
+    disabled: true
+  - name: 360search
+    disabled: true
+  - name: presearch
+    disabled: true
+  - name: presearch videos
+    disabled: true
+  - name: google
+    disabled: true
+  - name: google images
+    disabled: true
+  - name: google news
+    disabled: true
+  - name: google videos
+    disabled: true
+  - name: google scholar
+    disabled: true
+  - name: github
+    disabled: false
+  - name: stackoverflow
+    disabled: false
+  - name: pypi
+    disabled: false
+
+  # Acadêmico
+  - name: arxiv
+    disabled: false
+  - name: semantic scholar
+    disabled: false
+  - name: pubmed
+    disabled: false
+
+  - name: ahmia
+    disabled: true
+  - name: torch
+    disabled: true
+
+outgoing:
+  request_timeout: 6.0
+  proxies:
+    all://:
+      - http://gluetun:8888
+  extra_proxy_timeout: 10

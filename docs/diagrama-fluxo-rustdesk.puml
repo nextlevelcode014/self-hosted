@@ -1,0 +1,46 @@
+@startuml Fluxo - RustDesk Server
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — RustDesk Server (Acesso Remoto)
+caption Servidor próprio de ID (hbbs) e relay (hbbr) via Tailscale
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "Cliente RustDesk\n(outro PC)" as rd_client
+participant "ts-rustdesk" as ts_rustdesk
+participant "RustDesk\nhbbs (ID Server)" as hbbs
+participant "RustDesk\nhbbr (Relay)" as hbbr
+
+group Passo 1: Conexão do cliente ao servidor
+  user -> rd_client : "Abre RustDesk no\ncliente remoto"
+  rd_client -> ts_rustdesk : "Conexão via Tailscale"
+  ts_rustdesk -> hbbs : "Registra ID\n(porta 21116)"
+  ts_rustdesk -> hbbr : "Relay de tráfego\n(porta 21117)"
+end
+
+group Passo 2: Estabelecimento da sessão remota
+  rd_client -> hbbs : "Informa ID do servidor"
+  hbbs -> hbbr : "Coordena relay"
+  hbbr --> rd_client : "Estabelece túnel P2P\nou relay"
+end
+
+group Passo 3: Uso da sessão
+  user -> rd_client : "Controle remoto\n(mouse/teclado)"
+end
+
+note right
+  Portas RustDesk: 21115-21119.
+  hbbs = rendezvous server (ID).
+  hbbr = relay (fallback se P2P falhar).
+  Tudo via rede Tailscale — não depende
+  dos servidores públicos do RustDesk.
+end note
+
+@enduml

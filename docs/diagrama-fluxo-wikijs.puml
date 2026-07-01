@@ -1,0 +1,51 @@
+@startuml Fluxo - Wiki.js
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 12
+
+title Fluxo — Wiki.js (Plataforma de Wiki)
+caption Criação, edição e busca de conteúdo com histórico de revisões
+
+skinparam actor {
+  BorderColor #4A148C
+  FontColor #4A148C
+  BackgroundColor #F3E5F5
+}
+
+actor "Usuário" as user
+participant "Navegador" as browser
+participant "ts-wiki" as ts_wiki
+participant "Wiki.js" as wiki
+participant "PostgreSQL 15" as wiki_db
+
+group Passo 1: Acesso via Tailscale
+  user -> browser : "Acessa https://wiki.<TAILNET>.ts.net"
+  browser -> ts_wiki : "HTTPS via Tailscale"
+  ts_wiki -> wiki : "Proxy"
+end
+
+group Passo 2: Login
+  user -> wiki : "Login admin"
+  wiki -> wiki_db : "Autenticação"
+end
+
+group Passo 3: Criação/edição de conteúdo
+  user -> wiki : "Cria/edita página\n(markdown/WYSIWYG)"
+  wiki -> wiki_db : "Persiste conteúdo,\nhistórico de revisões"
+  wiki_db --> user : "Página renderizada"
+end
+
+group Passo 4: Busca de conteúdo
+  user -> wiki : "Busca conteúdo"
+  wiki -> wiki_db : "Full-text search\n(PostgreSQL)"
+end
+
+note right
+  Editor visual + markdown.
+  Histórico completo de revisões.
+  PostgreSQL 15 como backend.
+  Módulos e temas via
+  interface admin.
+end note
+
+@enduml
